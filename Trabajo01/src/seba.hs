@@ -29,8 +29,73 @@ main = do
 
     let game = generateGame n s
 
-    printGame game
+    gameLoop game
 
+gameLoop :: Game -> IO ()
+gameLoop game = do
+    printGame game
+    putStrLn "Ingrese una opción (W/A/S/D para moverse, Q para salir): "
+    option <- getLine
+    let game' = case option of
+            "W" -> arriba game
+            "A" -> izquierda game
+            "S" -> abajo game
+            "D" -> derecha game
+            "Q" -> game
+            _ -> game
+    if option /= "Q"
+        then gameLoop game'
+        else return ()
+
+arriba :: Game -> Game
+arriba game@Game{posPersonaje=(x,y), mapa=mapa} = 
+    let newPos = (x, y-1)
+    in if y > 0 && checkMov newPos mapa
+        then actualizarMapa game newPos
+        else game
+
+izquierda :: Game -> Game
+izquierda game@Game{posPersonaje=(x,y), mapa=mapa} = 
+    let newPos = (x-1, y)
+    in if x > 0 && checkMov newPos mapa
+        then actualizarMapa game newPos
+        else game
+
+abajo :: Game -> Game
+abajo game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} = 
+    let newPos = (x, y+1)
+    in if y < n-1 && checkMov newPos mapa
+        then actualizarMapa game newPos
+        else game
+
+derecha :: Game -> Game
+derecha game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} = 
+    let newPos = (x+1, y)
+    in if x < n-1 && checkMov newPos mapa
+        then actualizarMapa game newPos
+        else game
+
+-- Funcion que verifica que el movimiento sea válido, es decir, que no atraviese obstáculos o lava
+-- ni que se salga de los bordes
+checkMov :: (Int, Int) -> [[Celda]] -> Bool
+checkMov (x,y) mapa = case (mapa !! y) !! x of
+    Caminable -> True
+    Tesoro -> True
+    _ -> False
+ 
+-- Para actualizar la nueva posición del personaje 
+actualizarMapa :: Game -> (Int, Int) -> Game
+actualizarMapa game@Game{posPersonaje=oldPos, mapa=map} newPos@(x,y) =
+    let mapaActualizado = borraObjetos oldPos map
+        newMap = agregaObjetos newPos Personaje mapaActualizado
+    in game {posPersonaje = newPos, mapa = newMap}
+
+-- Para borrar la posicion antigua del personaje
+borraObjetos :: (Int, Int) -> [[Celda]] -> [[Celda]]
+borraObjetos (x, y) grid = 
+    take y grid ++ [take x (grid !! y) ++ [Caminable] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
+
+-- Crea el tablero
 generateGame :: Int -> Int -> Game
 generateGame n s =
     let gen = mkStdGen s
@@ -52,11 +117,11 @@ checkPosition n (pos, gen) =
         then (pos', gen')
         else checkPosition n (pos, gen')
 
-
 -- agrega el personaje o tesoro en las posiciones aleatorias
 agregaObjetos :: (Int, Int) -> Celda -> [[Celda]] -> [[Celda]]
 agregaObjetos (x, y) objeto grid = take y grid ++ [take x (grid !! y) ++ [objeto] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
 
+-- Para crear las celdas del mapa, HAY QUE CAMBIAR ESTO
 getCelda :: StdGen -> (Int, Int) -> Celda
 getCelda gen pos =
     let (r, _) = randomR (0 :: Int, 100) gen
@@ -65,7 +130,6 @@ getCelda gen pos =
             else if r < 10
                 then Lava
                 else Caminable
-
 
 -- Función para convertir una posición a una semilla para generar números aleatorios
 posToSeed :: (Int, Int) -> Int
