@@ -32,20 +32,29 @@ main = do
     gameLoop game
 
 gameLoop :: Game -> IO ()
-gameLoop game = do
-    printGame game
-    putStrLn "Ingrese una opción (W/A/S/D para moverse, Q para salir): "
-    option <- getLine
-    let game' = case option of
+gameLoop game
+    | posPersonaje game == posTesoro game = do
+      printGame game
+      putStrLn "¡Has encontrado el tesoro! ¡Has ganado!"
+    | otherwise = do
+      printGame game
+      putStrLn "Ingrese una opción (W/A/S/D para moverse, Q para salir): "
+      option <- getLine
+      let game' = case option of
             "W" -> arriba game
+            "w" -> arriba game
             "A" -> izquierda game
+            "a" -> izquierda game
             "S" -> abajo game
+            "s" -> abajo game
             "D" -> derecha game
+            "d" -> derecha game
             "Q" -> game
-            _ -> game
-    if option /= "Q"
-        then gameLoop game'
-        else return ()
+            _   -> game
+      if option /= "Q"
+            then gameLoop game'
+            else return ()
+
 
 arriba :: Game -> Game
 arriba game@Game{posPersonaje=(x,y), mapa=mapa} = 
