@@ -3,6 +3,7 @@ module Main where
 import System.Environment
 import System.Random
 import Data.List.Split (chunksOf)
+import System.Process
 
 data Celda = Caminable | Lava | Obstaculo | Tesoro | Personaje deriving (Eq)
 
@@ -18,7 +19,8 @@ data Game = Game
     tamMapa :: Int,
     posTesoro :: (Int, Int),
     posPersonaje :: (Int, Int),
-    mapa :: [[Celda]]
+    mapa :: [[Celda]],
+    posLava :: [(Int,Int)]
     }
 
 main :: IO ()
@@ -36,6 +38,10 @@ gameLoop game
     | posPersonaje game == posTesoro game = do
       printGame game
       putStrLn "¡Has encontrado el tesoro! ¡Has ganado!"
+    | elem (posPersonaje game) (posLava game) = do
+        printGame game
+        putStrLn "¡Caíste a la lava!¡GAME OVER!"
+        return () 
     | otherwise = do
       printGame game
       putStrLn "Ingrese una opción (W/A/S/D para moverse, Q para salir): "
@@ -55,7 +61,7 @@ gameLoop game
             then gameLoop game'
             else return ()
 
-
+-- Función simple que mueve el personaje hacia arriba, verificando que sea un movimiento válido y que no se salga de los bordes
 arriba :: Game -> Game
 arriba game@Game{posPersonaje=(x,y), mapa=mapa} = 
     let newPos = (x, y-1)
@@ -63,6 +69,7 @@ arriba game@Game{posPersonaje=(x,y), mapa=mapa} =
         then actualizarMapa game newPos
         else game
 
+-- Función simple que mueve el personaje hacia la izquierda, verificando que sea un movimiento válido y que no se salga de los bordes
 izquierda :: Game -> Game
 izquierda game@Game{posPersonaje=(x,y), mapa=mapa} = 
     let newPos = (x-1, y)
@@ -70,6 +77,7 @@ izquierda game@Game{posPersonaje=(x,y), mapa=mapa} =
         then actualizarMapa game newPos
         else game
 
+-- Función simple que mueve el personaje hacia abajo, verificando que sea un movimiento válido y que no se salga de los bordes
 abajo :: Game -> Game
 abajo game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} = 
     let newPos = (x, y+1)
@@ -77,6 +85,7 @@ abajo game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} =
         then actualizarMapa game newPos
         else game
 
+-- Función simple que mueve el personaje hacia la derecha, verificando que sea un movimiento válido y que no se salga de los bordes
 derecha :: Game -> Game
 derecha game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} = 
     let newPos = (x+1, y)
@@ -84,12 +93,14 @@ derecha game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} =
         then actualizarMapa game newPos
         else game
 
--- Funcion que verifica que el movimiento sea válido, es decir, que no atraviese obstáculos o lava
--- ni que se salga de los bordes
+-- Función que verifica que el movimiento sea válido, es decir, que no atraviese obstáculos. 
+-- Si el siguente paso es lava, se toma como valido, ya que otra parte
+-- del código se encarga de verificar si pisa lava, ahi muere y termina el juego
 checkMov :: (Int, Int) -> [[Celda]] -> Bool
 checkMov (x,y) mapa = case (mapa !! y) !! x of
     Caminable -> True
     Tesoro -> True
+    Lava -> True
     _ -> False
  
 -- Para actualizar la nueva posición del personaje 
@@ -104,7 +115,7 @@ borraObjetos :: (Int, Int) -> [[Celda]] -> [[Celda]]
 borraObjetos (x, y) grid = 
     take y grid ++ [take x (grid !! y) ++ [Caminable] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
 
--- Crea el tablero
+-- Crea el tablero inicial
 generateGame :: Int -> Int -> Game
 generateGame n s =
     let gen = mkStdGen s
@@ -116,7 +127,8 @@ generateGame n s =
         (y',_) = checkPosition n (y, gen''')
         celdas = agregaObjetos (x,y) Tesoro (chunksOf n celdaList)
         celdas2 = agregaObjetos (x',y') Personaje celdas
-    in Game {tamMapa = n, posTesoro = (x, y), posPersonaje = (x',y'), mapa = celdas2}
+        lavas = posicionesLava Lava celdas2
+    in Game {tamMapa = n, posTesoro = (x, y), posPersonaje = (x',y'), mapa = celdas2, posLava = lavas}
 
 -- Función para verificar si dos posiciones son distintas y generar una nueva posición si no lo son.
 checkPosition :: Int -> (Int, StdGen) -> (Int, StdGen)
@@ -126,9 +138,13 @@ checkPosition n (pos, gen) =
         then (pos', gen')
         else checkPosition n (pos, gen')
 
--- agrega el personaje o tesoro en las posiciones aleatorias
+-- Agrega el personaje o tesoro en las posiciones aleatorias
 agregaObjetos :: (Int, Int) -> Celda -> [[Celda]] -> [[Celda]]
 agregaObjetos (x, y) objeto grid = take y grid ++ [take x (grid !! y) ++ [objeto] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
+
+-- Busca las posiciones de las lavas y devuelve una lista con las coordenadas
+posicionesLava :: Celda -> [[Celda]] -> [(Int,Int)]
+posicionesLava objeto mapa = [(x, y) | (y, row) <- zip [0..] mapa, (x, celda) <- zip [0..] row, celda == objeto]
 
 -- Para crear las celdas del mapa, HAY QUE CAMBIAR ESTO
 getCelda :: StdGen -> (Int, Int) -> Celda
@@ -140,15 +156,30 @@ getCelda gen pos =
                 then Lava
                 else Caminable
 
--- Función para convertir una posición a una semilla para generar números aleatorios
+-- Función para convertir una posición (Int, Int) a una semilla para generar números aleatorios
 posToSeed :: (Int, Int) -> Int
 posToSeed (x, y) = mod (2654435761 * x + 2654435769 * y) 1000000007
 
+-- Limpia la consola "clear"
+limpiarConsola :: IO ()
+limpiarConsola = do
+    _ <- system "clear"  -- Para Ubuntu
+    --_ <- system "cls"  -- Para Windows
+    return ()
+
+-- Imprime el tablero ordenado y bonito
 printGame :: Game -> IO ()
 printGame game = do
-    putStrLn $ "Tamaño del mundo: " ++ show (tamMapa game)
+    limpiarConsola
+    let n = tamMapa game
+        border = "□" ++ (replicate n '-') ++ "□"
+        gameMap = mapa game
+        printRow row = putStrLn $ "|" ++ row ++ "|"
+    putStrLn $ "Tamaño del mundo: " ++ show n ++ "x" ++ show n
     putStrLn $ "Tesoro en la posición: " ++ show (posTesoro game)
     putStrLn "Mapa:"
-    mapM_ (putStrLn . concatMap show) (mapa game)
+    putStrLn border
+    mapM_ printRow (map (concatMap show) gameMap)
+    putStrLn border
 
 
