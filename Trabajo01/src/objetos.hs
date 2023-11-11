@@ -62,7 +62,7 @@ gameLoop game
             "D" -> derecha game
             "d" -> derecha game
             "Q" -> game
-            "q" -> game
+            "q" -> game                  
             "R" -> generateGame (tamMapa game) (posToSeed (posPersonaje game) + 1) (posTesoro game) (posPersonaje game)
             "r" -> generateGame (tamMapa game) (posToSeed (posPersonaje game) + 1) (posTesoro game) (posPersonaje game)
             _   -> game
