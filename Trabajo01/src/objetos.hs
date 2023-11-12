@@ -51,7 +51,7 @@ gameLoop game
       printGame game
       putStrLn "Ingrese una opción (W/A/S/D) para moverse, 'R' para reiniciar el mapa y 'Q' para salir): "
       option <- getLine
-      numAleatorio <- getStdRandom random -- Genera un número aleatorio
+      randomSeed <- getStdRandom random -- Genera un número aleatorio
       let game' = case option of
             "W" -> arriba game
             "w" -> arriba game
@@ -63,8 +63,8 @@ gameLoop game
             "d" -> derecha game
             "Q" -> game
             "q" -> game
-            "R" -> generateGame (tamMapa game) (numAleatorio) (posTesoro game) (posPersonaje game)
-            "r" -> generateGame (tamMapa game) (numAleatorio) (posTesoro game) (posPersonaje game)
+            "R" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
+            "r" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
             _   -> game
       if option /= "Q"
             then gameLoop game'
