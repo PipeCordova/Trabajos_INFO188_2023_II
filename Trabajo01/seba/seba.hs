@@ -13,7 +13,6 @@ instance Show Celda where
     show Obstaculo = "L"
     show Tesoro = "X"
     show Personaje = "@"
-    
 
 data Game = Game
     {
@@ -50,8 +49,9 @@ gameLoop game
         return () 
     | otherwise = do
       printGame game
-      putStrLn "Ingrese una opción (W/A/S/D para moverse, Q para salir): "
+      putStrLn "Ingrese una opción (W/A/S/D) para moverse, 'R' para reiniciar el mapa y 'Q' para salir): "
       option <- getLine
+      randomSeed <- getStdRandom random -- Genera un número aleatorio
       let game' = case option of
             "W" -> arriba game
             "w" -> arriba game
@@ -62,7 +62,9 @@ gameLoop game
             "D" -> derecha game
             "d" -> derecha game
             "Q" -> game
-            "r" -> generateGame (tamMapa game) (posToSeed (posPersonaje game) + 1) (posTesoro game) (posPersonaje game)
+            "q" -> game
+            "R" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
+            "r" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
             _   -> game
       if option /= "Q"
             then gameLoop game'
@@ -122,35 +124,28 @@ borraObjetos :: (Int, Int) -> [[Celda]] -> [[Celda]]
 borraObjetos (x, y) grid = 
     take y grid ++ [take x (grid !! y) ++ [Caminable] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
 
--- Crea el tablero inicial
+generarMurallas :: Int -> Int -> [[Celda]] -> [[Celda]]
+generarMurallas _ _ [] = []
+generarMurallas n s (fila:filasRestantes) =
+    let (anchura, s') = randomR (2, 4) (mkStdGen s)  -- define la anchura de los obstaculos, en este caso, pueden ser de ancho 2-3-4
+        probabilidadGeneracion = 20::Int  -- Probabilidad de generación de murallas (ajustar según sea necesario)
+        (posicion, s'') = randomR (0, n - anchura) s'
+        (generarMuralla, s''') = randomR (1::Int, 100) s''
+        muralla = if generarMuralla <= probabilidadGeneracion then replicate anchura Obstaculo else replicate anchura Caminable
+        filaConMuralla = take posicion fila ++ muralla ++ drop (posicion + anchura) fila
+    in filaConMuralla : generarMurallas n (fst (next s'')) filasRestantes
+
 generateGame :: Int -> Int -> (Int, Int) -> (Int, Int) -> Game
 generateGame n s (x, y) (x', y') =
     let gen = mkStdGen s
         filaCaminable = replicate n Caminable
         mapaCaminable = replicate n filaCaminable
-        --mapaConObstaculos = crearMurallas mapaCaminable 
-        celdas = agregaObjetos (x, y) Tesoro mapaCaminable -- deberia ir mapaConObstaculos
+        mapaConObstaculos = agregaObjetos (2, 0) Obstaculo mapaCaminable
+        mapaConMurallas = generarMurallas n s mapaConObstaculos
+        celdas = agregaObjetos (x, y) Tesoro mapaConMurallas
         celdas2 = agregaObjetos (x', y') Personaje celdas
         lavas = posicionesLava Lava celdas2
     in Game { tamMapa = n, posTesoro = (x, y), posPersonaje = (x', y'), mapa = celdas2, posLava = lavas }
-
-
--- Funcion que toma un mapa y una posicion, y reemplaza lo que hay en esa posicion por un obstaculo
-reemplazarConObstaculo :: [[Celda]] -> (Int, Int) -> [[Celda]]
-reemplazarConObstaculo mapa (i, j) =
-    let filaActualizada = take i mapa ++ [reemplazarEnFila (mapa !! i) j Obstaculo] ++ drop (i + 1) mapa
-    in take i filaActualizada ++ [reemplazarEnFila (mapa !! i) j Obstaculo] ++ drop (i + 1) filaActualizada
-
-reemplazarEnFila :: [Celda] -> Int -> Celda -> [Celda]
-reemplazarEnFila fila indice nuevoValor =
-    take indice fila ++ [nuevoValor] ++ drop (indice + 1) fila
-
-
-
-
-
-
-
 
 
 -- Función para verificar si dos posiciones son distintas y generar una nueva posición si no lo son.
