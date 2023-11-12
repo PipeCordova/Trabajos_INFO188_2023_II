@@ -13,6 +13,7 @@ instance Show Celda where
     show Obstaculo = "L"
     show Tesoro = "X"
     show Personaje = "@"
+    
 
 data Game = Game
     {
@@ -28,9 +29,14 @@ main = do
     args <- getArgs
     let n = read (args !! 0) :: Int
         s = read (args !! 1) :: Int
+    let gen = mkStdGen s
+        (x, gen') = randomR (0, n - 1) gen
+        (y, gen'') = randomR (0, n - 1) gen'
+        (x',gen''') = checkPosition n (x, gen'')
+        (y',_) = checkPosition n (y, gen''')
 
-    let game = generateGame n s
-
+    let game = generateGame n s (x, y) (x',y')
+    
     gameLoop game
 
 gameLoop :: Game -> IO ()
@@ -56,6 +62,7 @@ gameLoop game
             "D" -> derecha game
             "d" -> derecha game
             "Q" -> game
+            "r" -> generateGame (tamMapa game) (posToSeed (posPersonaje game) + 1) (posTesoro game) (posPersonaje game)
             _   -> game
       if option /= "Q"
             then gameLoop game'
@@ -116,19 +123,35 @@ borraObjetos (x, y) grid =
     take y grid ++ [take x (grid !! y) ++ [Caminable] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
 
 -- Crea el tablero inicial
-generateGame :: Int -> Int -> Game
-generateGame n s =
+generateGame :: Int -> Int -> (Int, Int) -> (Int, Int) -> Game
+generateGame n s (x, y) (x', y') =
     let gen = mkStdGen s
-        positions = [(i, j) | i <- [0 .. n - 1], j <- [0 .. n - 1]]
-        celdaList = map (\pos -> getCelda (mkStdGen (s * (posToSeed pos))) pos) positions
-        (x, gen') = randomR (0, n - 1) gen
-        (y, gen'') = randomR (0, n - 1) gen'
-        (x',gen''') = checkPosition n (x, gen'')
-        (y',_) = checkPosition n (y, gen''')
-        celdas = agregaObjetos (x,y) Tesoro (chunksOf n celdaList)
-        celdas2 = agregaObjetos (x',y') Personaje celdas
+        filaCaminable = replicate n Caminable
+        mapaCaminable = replicate n filaCaminable
+        --mapaConObstaculos = crearMurallas mapaCaminable 
+        celdas = agregaObjetos (x, y) Tesoro mapaCaminable -- deberia ir mapaConObstaculos
+        celdas2 = agregaObjetos (x', y') Personaje celdas
         lavas = posicionesLava Lava celdas2
-    in Game {tamMapa = n, posTesoro = (x, y), posPersonaje = (x',y'), mapa = celdas2, posLava = lavas}
+    in Game { tamMapa = n, posTesoro = (x, y), posPersonaje = (x', y'), mapa = celdas2, posLava = lavas }
+
+
+-- Funcion que toma un mapa y una posicion, y reemplaza lo que hay en esa posicion por un obstaculo
+reemplazarConObstaculo :: [[Celda]] -> (Int, Int) -> [[Celda]]
+reemplazarConObstaculo mapa (i, j) =
+    let filaActualizada = take i mapa ++ [reemplazarEnFila (mapa !! i) j Obstaculo] ++ drop (i + 1) mapa
+    in take i filaActualizada ++ [reemplazarEnFila (mapa !! i) j Obstaculo] ++ drop (i + 1) filaActualizada
+
+reemplazarEnFila :: [Celda] -> Int -> Celda -> [Celda]
+reemplazarEnFila fila indice nuevoValor =
+    take indice fila ++ [nuevoValor] ++ drop (indice + 1) fila
+
+
+
+
+
+
+
+
 
 -- Función para verificar si dos posiciones son distintas y generar una nueva posición si no lo son.
 checkPosition :: Int -> (Int, StdGen) -> (Int, StdGen)
