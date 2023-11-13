@@ -46,7 +46,7 @@ gameLoop game
             "d" -> derecha game
             "Q" -> game
             "q" -> game
-            "R" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
+            "R" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game) -- al apretar "R" la semilla será aleatiria para generar el nuevo mapa
             "r" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
             _   -> game
       if option == "Q" || option == "q"
