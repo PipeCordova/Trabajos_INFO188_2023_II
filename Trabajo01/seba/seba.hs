@@ -26,17 +26,23 @@ data Game = Game
 main :: IO ()
 main = do
     args <- getArgs
-    let n = read (args !! 0) :: Int
-        s = read (args !! 1) :: Int
-    let gen = mkStdGen s
-        (x, gen') = randomR (0, n - 1) gen
-        (y, gen'') = randomR (0, n - 1) gen'
-        (x',gen''') = checkPosition n (x, gen'')
-        (y',_) = checkPosition n (y, gen''')
+    if length args /= 2
+        then putStrLn "Debe ejecutar el codigo de la siguente forma\n./max <n> <s>\nn = Tamaño del mapa\ns = Semilla"
+        else do
+            let n = read (args !! 0) :: Int
+                s = read (args !! 1) :: Int
+            if n < 6
+                then putStrLn "El valor de n debe ser mayor o igual a 6 para el correcto funcionamiento."
+                else do
+                    let gen = mkStdGen s
+                        (x, gen') = randomR (0, n - 1) gen
+                        (y, gen'') = randomR (0, n - 1) gen'
+                        (x',gen''') = checkPosition n (x, gen'')
+                        (y',_) = checkPosition n (y, gen''')
 
-    let game = generateGame n s (x, y) (x',y')
-    
-    gameLoop game
+                    let game = generateGame n s (x, y) (x',y')
+
+                    gameLoop game
 
 gameLoop :: Game -> IO ()
 gameLoop game
@@ -127,25 +133,25 @@ borraObjetos (x, y) grid =
 generarMurallas :: Int -> Int -> [[Celda]] -> [[Celda]]
 generarMurallas _ _ [] = []
 generarMurallas n s (fila:filasRestantes) =
-    let (anchura, s') = randomR (2, 4) (mkStdGen s)  -- define la anchura de los obstaculos, en este caso, pueden ser de ancho 2-3-4
-        probabilidadGeneracion = 20::Int  -- Probabilidad de generación de murallas (ajustar según sea necesario)
+    let (anchura, s') = randomR (2, 6) (mkStdGen s)  -- define la anchura de los obstaculos, en este caso, pueden ser de ancho 2-3-4
+        probabilidadGeneracion = 45::Int  -- Probabilidad de generación de murallas (ajustar según sea necesario)
         (posicion, s'') = randomR (0, n - anchura) s'
         (generarMuralla, s''') = randomR (1::Int, 100) s''
         muralla = if generarMuralla <= probabilidadGeneracion then replicate anchura Obstaculo else replicate anchura Caminable
         filaConMuralla = take posicion fila ++ muralla ++ drop (posicion + anchura) fila
     in filaConMuralla : generarMurallas n (fst (next s'')) filasRestantes
 
+
 generateGame :: Int -> Int -> (Int, Int) -> (Int, Int) -> Game
 generateGame n s (x, y) (x', y') =
     let gen = mkStdGen s
         filaCaminable = replicate n Caminable
         mapaCaminable = replicate n filaCaminable
-        mapaConObstaculos = agregaObjetos (2, 0) Obstaculo mapaCaminable
-        mapaConMurallas = generarMurallas n s mapaConObstaculos
+        mapaConMurallas = generarMurallas n s mapaCaminable
         celdas = agregaObjetos (x, y) Tesoro mapaConMurallas
         celdas2 = agregaObjetos (x', y') Personaje celdas
         lavas = posicionesLava Lava celdas2
-    in Game { tamMapa = n, posTesoro = (x, y), posPersonaje = (x', y'), mapa = celdas2, posLava = lavas }
+    in Game { tamMapa = n, posTesoro = (x, y), posPersonaje = (x', y'), mapa = celdas2, posLava =lavas }
 
 
 -- Función para verificar si dos posiciones son distintas y generar una nueva posición si no lo son.
@@ -163,16 +169,6 @@ agregaObjetos (x, y) objeto grid = take y grid ++ [take x (grid !! y) ++ [objeto
 -- Busca las posiciones de las lavas y devuelve una lista con las coordenadas
 posicionesLava :: Celda -> [[Celda]] -> [(Int,Int)]
 posicionesLava objeto mapa = [(x, y) | (y, row) <- zip [0..] mapa, (x, celda) <- zip [0..] row, celda == objeto]
-
--- Para crear las celdas del mapa, HAY QUE CAMBIAR ESTO
-getCelda :: StdGen -> (Int, Int) -> Celda
-getCelda gen pos =
-    let (r, _) = randomR (0 :: Int, 100) gen
-        in if r < 5
-            then Obstaculo
-            else if r < 10
-                then Lava
-                else Caminable
 
 -- Función para convertir una posición (Int, Int) a una semilla para generar números aleatorios
 posToSeed :: (Int, Int) -> Int
