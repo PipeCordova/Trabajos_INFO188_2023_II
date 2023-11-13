@@ -2,7 +2,6 @@ module Funciones where
 
 import System.Random
 import System.Process
-import Data.List.Split (chunksOf)
 
 data Celda = Caminable | Lava | Obstaculo | Tesoro | Personaje deriving (Eq)
 
@@ -33,8 +32,9 @@ gameLoop game
         return () 
     | otherwise = do
       printGame game
-      putStrLn "Ingrese una opción (W/A/S/D para moverse, Q para salir): "
+      putStrLn "Ingrese una opción (W/A/S/D) para moverse, 'R' para reiniciar el mapa y 'Q' para salir): "
       option <- getLine
+      randomSeed <- getStdRandom random -- Genera un número aleatorio
       let game' = case option of
             "W" -> arriba game
             "w" -> arriba game
@@ -45,10 +45,13 @@ gameLoop game
             "D" -> derecha game
             "d" -> derecha game
             "Q" -> game
+            "q" -> game
+            "R" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
+            "r" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
             _   -> game
-      if option /= "Q"
-            then gameLoop game'
-            else return ()
+      if option == "Q" || option == "q"
+            then return ()
+            else gameLoop game'
 
 -- Función simple que mueve el personaje hacia arriba, verificando que sea un movimiento válido y que no se salga de los bordes
 arriba :: Game -> Game
@@ -84,7 +87,7 @@ derecha game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} =
 
 -- Función que verifica que el movimiento sea válido, es decir, que no atraviese obstáculos. 
 -- Si el siguente paso es lava, se toma como valido, ya que otra parte
--- del código se encarga de verificar si pisa lava, ahi muere y termina el juego
+-- del código se encarga de verificar si pisa lava, ahi muere, y termina el juego
 checkMov :: (Int, Int) -> [[Celda]] -> Bool
 checkMov (x,y) mapa = case (mapa !! y) !! x of
     Caminable -> True
@@ -104,20 +107,43 @@ borraObjetos :: (Int, Int) -> [[Celda]] -> [[Celda]]
 borraObjetos (x, y) grid = 
     take y grid ++ [take x (grid !! y) ++ [Caminable] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
 
--- Crea el tablero inicial
-generateGame :: Int -> Int -> Game
-generateGame n s =
+-- Genera murallas de obstáculos
+generarMurallas :: Int -> Int -> [[Celda]] -> [[Celda]]
+generarMurallas _ _ [] = []
+generarMurallas n s (fila:filasRestantes) =
+    let (anchura, s') = randomR (2, 6) (mkStdGen s)  -- define la anchura de los obstaculos, en este caso, pueden ser de ancho 2-3-4
+        probabilidadGeneracion = 45::Int  -- Probabilidad de generación de murallas (ajustar según sea necesario)
+        (posicion, s'') = randomR (0, n - anchura) s'
+        (generarMuralla, s''') = randomR (1::Int, 100) s''
+        muralla = if generarMuralla <= probabilidadGeneracion then replicate anchura Obstaculo else replicate anchura Caminable
+        filaConMuralla = take posicion fila ++ muralla ++ drop (posicion + anchura) fila
+    in filaConMuralla : generarMurallas n (fst (next s'')) filasRestantes
+
+-- Función para agregar bloques de lava al mapa
+agregarLava :: Int -> [[Celda]] -> Int -> StdGen -> ([[Celda]], StdGen)
+agregarLava n mapaConMurallas probabilidad gen =
+  let posicionesCaminables = [(x, y) | y <- [0..n-1], x <- [0..n-1], (mapaConMurallas !! y) !! x == Caminable]
+      (mapaConLava, gen') = foldl (\(mapa, g) pos ->
+                            let (randNum, g') = randomR (1, 100) g
+                            in if randNum <= probabilidad
+                               then (agregaObjetos pos Lava mapa, g')
+                               else (mapa, g')
+                          ) (mapaConMurallas, gen) posicionesCaminables
+  in (mapaConLava, gen')
+
+-- Genera el tablero
+generateGame :: Int -> Int -> (Int, Int) -> (Int, Int) -> Game
+generateGame n s (x, y) (x', y') =
     let gen = mkStdGen s
-        positions = [(i, j) | i <- [0 .. n - 1], j <- [0 .. n - 1]]
-        celdaList = map (\pos -> getCelda (mkStdGen (s * (posToSeed pos))) pos) positions
-        (x, gen') = randomR (0, n - 1) gen
-        (y, gen'') = randomR (0, n - 1) gen'
-        (x',gen''') = checkPosition n (x, gen'')
-        (y',_) = checkPosition n (y, gen''')
-        celdas = agregaObjetos (x,y) Tesoro (chunksOf n celdaList)
-        celdas2 = agregaObjetos (x',y') Personaje celdas
+        filaCaminable = replicate n Caminable
+        mapaCaminable = replicate n filaCaminable
+        mapaConMurallas = generarMurallas n s mapaCaminable
+        (mapaConLava, gen') = agregarLava n mapaConMurallas 20 gen
+        celdas = agregaObjetos (x, y) Tesoro mapaConLava
+        celdas2 = agregaObjetos (x', y') Personaje celdas
         lavas = posicionesLava Lava celdas2
-    in Game {tamMapa = n, posTesoro = (x, y), posPersonaje = (x',y'), mapa = celdas2, posLava = lavas}
+    in Game { tamMapa = n, posTesoro = (x, y), posPersonaje = (x', y'), mapa = celdas2, posLava =lavas }
+
 
 -- Función para verificar si dos posiciones son distintas y generar una nueva posición si no lo son.
 checkPosition :: Int -> (Int, StdGen) -> (Int, StdGen)
@@ -134,20 +160,6 @@ agregaObjetos (x, y) objeto grid = take y grid ++ [take x (grid !! y) ++ [objeto
 -- Busca las posiciones de las lavas y devuelve una lista con las coordenadas
 posicionesLava :: Celda -> [[Celda]] -> [(Int,Int)]
 posicionesLava objeto mapa = [(x, y) | (y, row) <- zip [0..] mapa, (x, celda) <- zip [0..] row, celda == objeto]
-
--- Para crear las celdas del mapa, HAY QUE CAMBIAR ESTO
-getCelda :: StdGen -> (Int, Int) -> Celda
-getCelda gen pos =
-    let (r, _) = randomR (0 :: Int, 100) gen
-        in if r < 5
-            then Obstaculo
-            else if r < 10
-                then Lava
-                else Caminable
-
--- Función para convertir una posición (Int, Int) a una semilla para generar números aleatorios
-posToSeed :: (Int, Int) -> Int
-posToSeed (x, y) = mod (2654435761 * x + 2654435769 * y) 1000000007
 
 -- Limpia la consola "clear"
 limpiarConsola :: IO ()

@@ -1,8 +1,5 @@
 all:
-	ghc main.hs -o max
+	ghc main.hs -o max 
 
-seba:
-	ghc seba.hs -o prog
-
-obj:
-	ghc objetos.hs -o obj
+clean: 
+	rm -f main.hi main.o Funciones.hi Funciones.o max
