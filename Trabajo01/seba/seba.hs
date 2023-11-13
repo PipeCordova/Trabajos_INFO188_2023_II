@@ -72,9 +72,9 @@ gameLoop game
             "R" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
             "r" -> generateGame (tamMapa game) (randomSeed) (posTesoro game) (posPersonaje game)
             _   -> game
-      if option /= "Q"
-            then gameLoop game'
-            else return ()
+      if option == "Q" || option == "q"
+            then return ()
+            else gameLoop game'
 
 -- Función simple que mueve el personaje hacia arriba, verificando que sea un movimiento válido y que no se salga de los bordes
 arriba :: Game -> Game
@@ -110,7 +110,7 @@ derecha game@Game{posPersonaje=(x,y), tamMapa=n, mapa=mapa} =
 
 -- Función que verifica que el movimiento sea válido, es decir, que no atraviese obstáculos. 
 -- Si el siguente paso es lava, se toma como valido, ya que otra parte
--- del código se encarga de verificar si pisa lava, ahi muere y termina el juego
+-- del código se encarga de verificar si pisa lava, ahi muere, y termina el juego
 checkMov :: (Int, Int) -> [[Celda]] -> Bool
 checkMov (x,y) mapa = case (mapa !! y) !! x of
     Caminable -> True
@@ -130,6 +130,7 @@ borraObjetos :: (Int, Int) -> [[Celda]] -> [[Celda]]
 borraObjetos (x, y) grid = 
     take y grid ++ [take x (grid !! y) ++ [Caminable] ++ drop (x+1) (grid !! y)] ++ drop (y+1) grid
 
+-- Genera murallas de obstáculos
 generarMurallas :: Int -> Int -> [[Celda]] -> [[Celda]]
 generarMurallas _ _ [] = []
 generarMurallas n s (fila:filasRestantes) =
@@ -141,7 +142,7 @@ generarMurallas n s (fila:filasRestantes) =
         filaConMuralla = take posicion fila ++ muralla ++ drop (posicion + anchura) fila
     in filaConMuralla : generarMurallas n (fst (next s'')) filasRestantes
 
-
+-- Genera el tablero
 generateGame :: Int -> Int -> (Int, Int) -> (Int, Int) -> Game
 generateGame n s (x, y) (x', y') =
     let gen = mkStdGen s
@@ -169,10 +170,6 @@ agregaObjetos (x, y) objeto grid = take y grid ++ [take x (grid !! y) ++ [objeto
 -- Busca las posiciones de las lavas y devuelve una lista con las coordenadas
 posicionesLava :: Celda -> [[Celda]] -> [(Int,Int)]
 posicionesLava objeto mapa = [(x, y) | (y, row) <- zip [0..] mapa, (x, celda) <- zip [0..] row, celda == objeto]
-
--- Función para convertir una posición (Int, Int) a una semilla para generar números aleatorios
-posToSeed :: (Int, Int) -> Int
-posToSeed (x, y) = mod (2654435761 * x + 2654435769 * y) 1000000007
 
 -- Limpia la consola "clear"
 limpiarConsola :: IO ()
