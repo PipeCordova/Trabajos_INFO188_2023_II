@@ -115,6 +115,7 @@ void multiplicarMatrizPorVectorCUDA(const MatrizDispersa& matriz, const vector<f
     multiplicarMatrizPorVectorGPU<<<numBlocks, blockSize>>>(d_elementos, matriz.elementosNoNulos.size(), d_vec, d_vectorResultadoGPU);
     double t1 = omp_get_wtime();
     tiempo_total_GPU = t1-t0;
+
     // Copiar resultados de vuelta a la CPU
     cudaMemcpy(vectorResultadoGPU.data(), d_vectorResultadoGPU, vectorResultadoGPU.size() * sizeof(float), cudaMemcpyDeviceToHost);
 
@@ -275,6 +276,11 @@ int main(int argc, char *argv[]) {
     int elemNoNulos = matriz.elementosNoNulos.size();
     float proporcion = (float)matriz.elementosNoNulos.size() / ((float)n*(float)n);
     printf("\nHay %i de %i elementos no nulos (%f densidad real)\n", elemNoNulos, n*n, proporcion); fflush(stdout);
+
+    float bytesConvencional = (float)(n*n*4)/(1024.0*1024.0);
+    float bytes = (float)(elemNoNulos * 4)/(1024.0*1024.0);
+    printf("Memoria de la matriz utilizada convencionalmente = %0.3f Mb\n", bytesConvencional);fflush(stdout);
+    printf("Memoria de la matriz utilizada por nuestro método = %0.3f Mb\n", bytes);fflush(stdout);
 
     return 0;
 }
